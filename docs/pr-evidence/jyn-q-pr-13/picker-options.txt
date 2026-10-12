@@ -1,0 +1,14 @@
+pet selector in the running DSH Web GUI (http://127.0.0.1:19387), Settings > 宠物
+element: select#settings-pet-pet
+value at capture time: whale-girl
+option jyn-q present: true
+
+=继承
+blue-throated-bee-eater=蓝喉蜂虎
+ouo-neko=OUO Neko
+whale-girl=鲸鱼娘（原版）
+whale-girl-refined=鲸鱼娘（精致版）
+doro=doro
+jyn=女仆鲸鱼娘
+jyn-foxtail=鲸鱼娘·狗尾巴草
+jyn-q=鲸鱼娘·Q版

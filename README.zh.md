@@ -249,6 +249,7 @@ ctx.effect(() => ctx.pet.registerPanelAction({
 | `doro` | doro | 由 stushansusu 以 MIT 许可证贡献的 frames2d 玩法宠物：11 条轨道 / 802 帧 42ms webp 序列——呼吸待机、打工三件套、睡觉、洗澡模式（心情 +3/秒）、随机漫游用的四向爬行、三个待机小动作（cola / orange / tongue）与仅拖拽期间播放的挣扎循环。Doro 是《胜利女神：妮姬》桃乐丝的非官方同人二创/梗衍生形象，角色及相关权利归 SHIFT UP 所有——仅限个人非商业使用，与官方无隶属或背书关系（见 THIRD_PARTY_NOTICES.md）。 |
 | `jyn` | 女仆鲸鱼娘 | frames2d 玩法宠物（stushansusu 以 MIT 贡献）：带打工/睡觉/触摸玩法与三款可选皮肤（暗夜鎏金 / 蓝海霓裳 / 冰晶公主）的女仆鲸鱼同桌宠，每款皮肤各带一个概率掷骰点击动作；暗夜鎏金另将专属休息循环换入睡觉玩法 |
 | `jyn-foxtail` | 鲸鱼娘·狗尾巴草 | 由 stushansusu 以 MIT 贡献的 frames2d 玩法宠物：剪纸风格的鲸鱼娘，13 条 3.00s 帧序列轨道（idle / tease / eat / heart / face / work / work-success / work-fail / sleep / sleeping / snack / sneeze / yawn），带点击、打工、睡觉与四个待机小动作玩法；previews/ 下每条轨道一张静态 webp 封面 |
+| `jyn-q` | 鲸鱼娘·Q版 | 由 stushansusu 以 MIT 贡献的 frames2d 玩法宠物：一张静态立绘驱动的 Q 版鲸鱼娘——8 条轨道 144 帧全部程序化生成（以脚底为锚点的缩放 + 旋转 + 位移，没有视频产线），共用 340x430 单元、内容高 320px，默认 160px 显示高度在 2 倍屏上正好 1:1；弹跳待机，加张望／歪头／敲键盘／点头四个循环与蓄力跳／泄气塌／摸头连弹三个单次动作，七个活动相位全部显式映射，且 144 帧没有任何两帧逐字节相同。立绘是作者提供的豆包（Doubao）生成透明 PNG；鲸鱼娘是 DeepSeek 鲸鱼标识线上的非官方同人形象——仅限个人非商业使用，非官方、与 DeepSeek 无隶属或背书关系（见 THIRD_PARTY_NOTICES.md） |
 | `ouo-neko` | OUO Neko | `Pessimist0906` 以 MIT 许可证贡献的粉色樱花猫耳伙伴 |
 | `whale-girl` | 鲸鱼娘（原版） | 仓库原有的鲸鱼娘图集 |
 | `whale-girl-refined` | 鲸鱼娘（精致版） | 以鲸鱼娘设计方向为基础，经 AI 辅助二次创作、修复和细节精修的衍生版本 |

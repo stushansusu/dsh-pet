@@ -1,12 +1,13 @@
 /**
  * jyn-q (鲸鱼娘 Q版) pet manifest + on-disk frames guard: 8 frames2d tracks
- * (148 frames) — a breathing idle, the six activity-phase reactions
+ * (144 frames) — a bouncing idle, the six activity-phase reactions
  * (waiting / thinking / tool / review / done / failed) and one tap reaction.
  * Every frame is generated procedurally from a single static illustration
  * with a foot-anchored affine transform, so the package stays small and is
  * pure content: no host or client code changes alongside it.
  */
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parsePetManifest } from '../src/manifest-v2.ts'
@@ -17,8 +18,15 @@ const JYN_Q_DIR = join(petPackageRoot(import.meta.url), 'assets', 'jyn-q')
 
 /** Frames shipped per track; the manifest omits explicit lists and the host lists the directory. */
 const TRACK_FRAMES: Readonly<Record<string, number>> = {
-  idle: 24, waiting: 20, thinking: 20, tool: 16, review: 18, done: 18, failed: 16, happy: 16,
+  idle: 24, waiting: 20, thinking: 20, tool: 12, review: 18, done: 18, failed: 16, happy: 16,
 }
+
+/**
+ * The one cell every frame shares. 320 px of content height is deliberate: the
+ * default display height is 160 px, so a 2x screen gets a 1:1 blit instead of an
+ * upscale, which is what the 223x297 first submission was rejected for.
+ */
+const CELL = '340x430'
 
 /** One-shot reactions that must settle back into the idle loop. */
 const ONE_SHOT = ['done', 'failed', 'happy'] as const
@@ -110,7 +118,30 @@ describe('jyn-q pet manifest', () => {
         cells.add(dim!.width + 'x' + dim!.height)
       }
     }
-    expect([...cells]).toEqual(['223x297'])
+    expect([...cells]).toEqual([CELL])
+  })
+
+  it('ships frames no two of which are byte-identical', () => {
+    // Given the generated frames; when their bytes are hashed; then every frame
+    // is its own frame. The first submission shipped 148 frames in which 25
+    // groups were the same bytes — the loops folded back on themselves and every
+    // one-shot opened on the same neutral pose — which read as "eight states,
+    // one drawing". The loops now carry an odd-harmonic term so t and t+0.5 land
+    // on different poses, and the one-shots open mid-anticipation.
+    const hashes = new Map<string, string>()
+    const duplicates: string[] = []
+    for (const track of Object.keys(TRACK_FRAMES)) {
+      for (const file of frameFiles(track)) {
+        const bytes = readFileSync(join(JYN_Q_DIR, 'frames', track, file))
+        const hash = createHash('sha256').update(bytes).digest('hex')
+        const label = track + '/' + file
+        const twin = hashes.get(hash)
+        if (twin) duplicates.push(twin + ' == ' + label)
+        else hashes.set(hash, label)
+      }
+    }
+    expect(duplicates).toEqual([])
+    expect(hashes.size).toBe(Object.values(TRACK_FRAMES).reduce((a, b) => a + b, 0))
   })
 
   it('encodes each frame duration in the file name', () => {
