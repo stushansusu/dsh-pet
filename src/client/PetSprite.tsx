@@ -567,19 +567,38 @@ export function PetSprite(props: PetSpriteProps): ReactPortal {
     if (draggedRef.current) props.onDraggingChange?.(false)
     const landed = dragPos
     dragSampleRef.current = null
-    if (landed === null) return
     if (physicsOn) {
       // Hand the position to the integrator with the flick as its velocity;
       // React takes the settled inset back when the body comes to rest, so a
       // reload finds the pet where it stopped.
       const velocity = dragVelRef.current
       dragVelRef.current = { vx: 0, vy: 0 }
+      if (landed === null) {
+        // A press that never moved (a click or a tap) wrote no drag position,
+        // so there is nothing to hand over — but the press above still parked
+        // the loop, and leaving it parked froze the pet in mid-air for good.
+        // Give the body the grab caught straight back to the integrator; a
+        // body that had already gone to sleep has nothing to resume.
+        const caught = physicsRef.current
+        if (caught !== null && !caught.resting) startPhysics(caught)
+        return
+      }
       setPhysicsPos({ right: landed.right, bottom: landed.bottom })
       setDragPos(null)
       startPhysics({ ...petPhysicsBodyAt(landed.right, landed.bottom), vx: velocity.vx, vy: velocity.vy })
       return
     }
+    if (landed === null) return
     props.onDragEnd(landed.right, landed.bottom)
+  }
+
+  /**
+   * The browser can revoke a pointer sequence (a touch curved into a scroll,
+   * the window losing the pointer): run the same hand-back a release does, so
+   * a cancelled grab cannot park the loop and freeze the pet mid-air either.
+   */
+  const onPointerCancel = (): void => {
+    onPointerUp()
   }
 
   const pos = dragPos ?? physicsPos ?? { right: display.right, bottom: display.bottom }
@@ -904,6 +923,7 @@ export function PetSprite(props: PetSpriteProps): ReactPortal {
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
           onClick={(e) => {
             // A pointer sequence that moved (dragged) still fires a trailing
             // click; skip the pet when that happened.

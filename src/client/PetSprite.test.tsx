@@ -1399,3 +1399,211 @@ describe('PetSprite announcement bubbles from several publishers (issue #1812)',
   })
 })
 
+describe('PetSprite bounce physics (display.physics)', () => {
+  // jsdom ships no pointer capture; the component calls it optionally, and
+  // stubbing keeps the press path identical to a browser's.
+  beforeAll(() => {
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      configurable: true,
+      writable: true,
+      value: () => {},
+    })
+  })
+
+  /** The float container the integrator positions, walked up from the sprite. */
+  function floatFor(name: string): HTMLElement {
+    let node: HTMLElement | null = screen.getByRole('button', { name })
+    while (node !== null && node.style.zIndex !== '2147483000') node = node.parentElement
+    if (node === null) throw new Error('float container not found for ' + name)
+    return node
+  }
+
+  /** The squash wrapper the integrator paints its transform onto. */
+  function wrapFor(name: string): HTMLElement {
+    const wrap = screen.getByRole('button', { name }).parentElement
+    if (wrap === null) throw new Error('sprite wrap not found for ' + name)
+    return wrap
+  }
+
+  /** A CSS inset the integrator wrote (right/bottom, in px). */
+  function inset(name: string, side: 'right' | 'bottom'): number {
+    return Number.parseFloat(floatFor(name).style[side])
+  }
+
+  /**
+   * A hand-driven rAF queue. The integrator is its only consumer — the
+   * frame loop is held still by the prefers-reduced-motion match above — so a
+   * non-empty queue means "the physics loop is alive", and each step is one
+   * frame a nominal 16 ms after the last.
+   */
+  function frameLoop(): { step: () => void; pending: () => number } {
+    const queue = new Map<number, FrameRequestCallback>()
+    let next = 1
+    let virtual = 0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = next
+      next += 1
+      queue.set(id, callback)
+      return id
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      queue.delete(id)
+    })
+    return {
+      pending: () => queue.size,
+      step: () => {
+        virtual += 16
+        const at = performance.now() + virtual
+        const due = [...queue.values()]
+        queue.clear()
+        act(() => {
+          for (const callback of due) callback(at)
+        })
+      },
+    }
+  }
+
+  /** Run frames until the integrator parks itself again. */
+  function settle(loop: { step: () => void; pending: () => number }, cap = 400): number {
+    let frames = 0
+    while (loop.pending() > 0 && frames < cap) {
+      loop.step()
+      frames += 1
+    }
+    return frames
+  }
+
+  const viewport = { width: window.innerWidth, height: window.innerHeight }
+  function setViewport(width: number, height: number): void {
+    Object.defineProperty(window, 'innerWidth', { value: width, configurable: true, writable: true })
+    Object.defineProperty(window, 'innerHeight', { value: height, configurable: true, writable: true })
+  }
+  afterEach(() => {
+    setViewport(viewport.width, viewport.height)
+  })
+
+  it('hands a clicked pet back to the integrator instead of freezing it mid-air', () => {
+    // Given a pet in mid-flight (the reported repro: pointerdown and pointerup
+    // with no pointermove between them); when it is clicked; then the loop the
+    // grab parked is live again and the pet keeps flying. Before the fix the
+    // body hung in the air for good, still squashed, while the head-pat fired.
+    const loop = frameLoop()
+    const onPet = vi.fn()
+    renderPet({ display: { ...snapshot.display, physics: true }, onPet })
+    expect(loop.pending()).toBe(1)
+    loop.step()
+    expect(loop.pending()).toBe(1)
+    const sprite = screen.getByRole('button', { name: '鲸鱼娘' })
+    const before = inset('鲸鱼娘', 'bottom')
+
+    fireEvent.pointerDown(sprite, { pointerId: 1, clientX: 40, clientY: 40 })
+    // The grab parks the loop on purpose: the pointer owns the position.
+    expect(loop.pending()).toBe(0)
+    fireEvent.pointerUp(sprite, { pointerId: 1, clientX: 40, clientY: 40 })
+
+    expect(loop.pending()).toBe(1)
+    loop.step()
+    expect(inset('鲸鱼娘', 'bottom')).toBeLessThan(before)
+    // And the click still pets the sprite: the fix must not swallow it.
+    fireEvent.click(sprite)
+    expect(onPet).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands the body back when the browser revokes the pointer sequence', () => {
+    // Given the same mid-flight pet; when the browser cancels the sequence
+    // (a touch curving into a scroll) instead of ending it; then the loop is
+    // live again rather than parked for good.
+    const loop = frameLoop()
+    renderPet({ display: { ...snapshot.display, physics: true } })
+    loop.step()
+    const sprite = screen.getByRole('button', { name: '鲸鱼娘' })
+    fireEvent.pointerDown(sprite, { pointerId: 2, clientX: 40, clientY: 40 })
+    expect(loop.pending()).toBe(0)
+    fireEvent.pointerCancel(sprite, { pointerId: 2, clientX: 40, clientY: 40 })
+    expect(loop.pending()).toBe(1)
+  })
+
+  it('never starts the integrator while the switch is off', () => {
+    // Given the shipped default (the switch off); when the sprite mounts; then
+    // nothing schedules a frame and the pet stays on the inset the display
+    // settings hold — physics is strictly opt-in.
+    const loop = frameLoop()
+    const onDragEnd = vi.fn()
+    renderPet({ display: { ...snapshot.display, physics: false }, onDragEnd })
+    expect(loop.pending()).toBe(0)
+    expect(inset('鲸鱼娘', 'right')).toBe(snapshot.display.right)
+    expect(inset('鲸鱼娘', 'bottom')).toBe(snapshot.display.bottom)
+    expect(onDragEnd).not.toHaveBeenCalled()
+  })
+
+  it('drops a switched-in pet from its own saved spot, not the outgoing flight', () => {
+    // Given a pet mid-flight; when the user switches to another pet; then the
+    // outgoing squash run is cleared with it and exactly one loop runs for the
+    // new pet — two pets must never share one body.
+    const loop = frameLoop()
+    const { result } = renderPet({ display: { ...snapshot.display, physics: true } })
+    loop.step()
+    expect(wrapFor('鲸鱼娘').style.transform).not.toBe('')
+
+    result.rerender(<PetSprite {...petProps({
+      display: { ...snapshot.display, physics: true },
+      definition: { ...petDefinition(), id: 'ouo-neko', displayName: '猫猫' },
+    })} />)
+
+    expect(wrapFor('猫猫').style.transform).toBe('')
+    expect(loop.pending()).toBe(1)
+    loop.step()
+    expect(wrapFor('猫猫').style.transform).not.toBe('')
+  })
+
+  it('clamps a settling pet into a viewport that shrank while it was flying', () => {
+    // Given a window large enough for the saved inset when the pet was
+    // dropped; when the window shrinks mid-flight; then the integrator re-reads
+    // the bounds every frame instead of trusting the ones it launched with, and
+    // the pet settles inside the smaller viewport.
+    const loop = frameLoop()
+    setViewport(800, 600)
+    const onDragEnd = vi.fn()
+    renderPet({ display: { ...snapshot.display, physics: true, right: 600, bottom: 500 }, onDragEnd })
+    loop.step()
+    setViewport(320, 240)
+
+    expect(settle(loop)).toBeLessThan(400)
+    expect(loop.pending()).toBe(0)
+    const width = Number.parseFloat(wrapFor('鲸鱼娘').style.width)
+    expect(inset('鲸鱼娘', 'right')).toBeCloseTo(320 - width - 8, 0)
+    expect(inset('鲸鱼娘', 'bottom')).toBe(8)
+    // The resting spot is what gets persisted, and it is inside the new box.
+    expect(onDragEnd).toHaveBeenLastCalledWith(Math.round(320 - width - 8), 8)
+  })
+
+  it('keeps one integrator per sprite when two pets share the page', () => {
+    // Given two pets with the switch on; when they fall; then each owns its own
+    // loop, its own body and its own persisted resting spot.
+    const loop = frameLoop()
+    const endA = vi.fn()
+    const endB = vi.fn()
+    render(<PetSprite {...petProps({
+      display: { ...snapshot.display, physics: true, right: 40, bottom: 300 },
+      onDragEnd: endA,
+    })} />)
+    render(<PetSprite {...petProps({
+      display: { ...snapshot.display, physics: true, right: 260, bottom: 300 },
+      definition: { ...petDefinition(), id: 'ouo-neko', displayName: '猫猫' },
+      onDragEnd: endB,
+    })} />)
+    expect(loop.pending()).toBe(2)
+    const beforeA = inset('鲸鱼娘', 'bottom')
+    const beforeB = inset('猫猫', 'bottom')
+    loop.step()
+    expect(inset('鲸鱼娘', 'bottom')).toBeLessThan(beforeA)
+    expect(inset('猫猫', 'bottom')).toBeLessThan(beforeB)
+
+    expect(settle(loop)).toBeLessThan(400)
+    expect(endA).toHaveBeenCalledTimes(1)
+    expect(endB).toHaveBeenCalledTimes(1)
+    expect(endA.mock.calls[0][0]).toBe(40)
+    expect(endB.mock.calls[0][0]).toBe(260)
+  })
+})
+

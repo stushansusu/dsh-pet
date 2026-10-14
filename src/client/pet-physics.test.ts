@@ -55,7 +55,7 @@ describe('pet physics', () => {
     // repeatedly; then each apex is e² of the one before it, which is exactly
     // what makes the pet visibly bounce itself out.
     const config: PetPhysicsConfig = { ...DEFAULT_PET_PHYSICS, airDrag: 0 }
-    const { apexes } = flights(petPhysicsBodyAt(400, BOUNDS.minBottom + FALL), 20, config)
+    const { apexes, landings } = flights(petPhysicsBodyAt(400, BOUNDS.minBottom + FALL), 20, config)
     expect(apexes.length).toBeGreaterThanOrEqual(4)
     const expected = config.restitutionFloor ** 2
     // The first apex IS the drop height, so the closed form covers shot one on.
@@ -63,9 +63,12 @@ describe('pet physics', () => {
     for (let i = 1; i < apexes.length; i += 1) {
       expect(apexes[i - 1] * expected).toBeCloseTo(apexes[i], 1)
     }
-    // And the landing speeds decay by e, not by e².
-    for (let i = 1; i < 4; i += 1) {
-      expect(apexes.length > i).toBe(true)
+    // And each landing arrives at e of the previous one's speed, not e²: the
+    // contact-speed correction is what makes the apex ratio come out exactly
+    // e², so this is the half of the decay the apexes alone cannot prove.
+    expect(landings.length).toBe(apexes.length)
+    for (let i = 1; i < landings.length; i += 1) {
+      expect(landings[i - 1] * config.restitutionFloor).toBeCloseTo(landings[i], 1)
     }
   })
 
