@@ -33,11 +33,29 @@ The jyn-q submission (PR #13) was held by the 2026-10-12 review on four points.
   driving stretch and squash), but the committed frames were still the older
   output — which is why `happy/f_000` was byte-identical to `idle/f_000` while the
   description already talked about bouncing.
-- **320 px of content height, one 340x430 cell, 144 frames** (the `tool` loop went
-  16 -> 12 frames). 320 is chosen against the default 160 px display height: a 2x
-  screen then blits 1:1 instead of upscaling. The shipped package is 5.57 MB
-  against jyn's 113.9 MB, doro's 55.5 MB and jyn-foxtail's 14.9 MB, so the
-  resolution is not what makes a built-in pet heavy.
+- **A nominal 320 px of content height, one 340x430 cell, 144 frames** (the `tool`
+  loop went 16 -> 12 frames). The first version of this bullet claimed a 2x screen
+  would then blit 1:1; the 2026-10-16 review caught it and it is corrected here.
+  Display sizing divides the requested size by the **cell** height
+  (`spriteScale = display.size / cell.height`), not by the illustration, and the
+  illustration only spans the middle of the cell: measured frame by frame it is
+  254-383 px tall, median 331. At the default `size=160` the pet therefore draws
+  about 123 CSS px tall — on a 2x screen a ~0.74x downsample of the source, better
+  than the rejected 223x297 cell's upscale but **not** a 1:1 blit; 1:1 for the full
+  cell needs `size = 215`. The shipped package is 5.57 MB against jyn's 113.9 MB,
+  doro's 55.5 MB and jyn-foxtail's 14.9 MB, so the resolution is not what makes a
+  built-in pet heavy.
+- **jyn-q stays out of the npm `files` whitelist.** This branch first added
+  `assets/jyn-q` to it; the 2026-10-16 review had the line removed. A fan character
+  declared personal non-commercial and non-official must not ride along in the
+  published `@linxin666/dsh-pet` tarball, and this repository whitelists only pets
+  that are meant to be built-in defaults (whale / whale-refined / ouo-neko /
+  blue-throated-bee-eater / decorations). The registry still resolves jyn-q from
+  `assets/` in a checkout — the expected-entry list and the `byId` assertion in
+  `src/registry.test.ts` stay, because the registry scans the directory and dropping
+  them would fail the test — and a published install gets the pet through a Workshop
+  install under `$DSH_HOME/pets`, like doro, jyn, jyn-foxtail, long-niang and
+  starry-doll.
 - **Every loop now carries an odd-harmonic term with a phase offset**, so the hop
   and the sway no longer share a period and t and t+0.5 cannot fold onto the same
   pose; the one-shots open mid-anticipation instead of on the neutral stance. The
@@ -64,8 +82,9 @@ The jyn-q submission (PR #13) was held by the 2026-10-12 review on four points.
 ## Alternatives considered
 
 - **Keeping 223x297 and declaring the low resolution accepted.** Rejected. The
-  review offered it, but 320 px costs little against the pet sizes already shipped
-  and removes the concern outright instead of carrying a caveat.
+  review offered it, but the larger cell costs little against the pet sizes already
+  shipped and turns an upscale into the mild 0.74x downsample recorded above — which
+  the README row now states, instead of leaving the reader to infer 1:1.
 - **Adding real per-state art (separate poses per state).** Rejected for this
   submission. The pet's premise is one illustration driving a procedural pet; a
   multi-pose set is a different submission, not a fix. The review's own wording
@@ -100,3 +119,9 @@ The jyn-q submission (PR #13) was held by the 2026-10-12 review on four points.
 - The byte-identical check in `tests/jyn-q-pet.spec.ts` is the reusable part: it
   catches "the loop repeats itself" mechanically, which is what a frame-level review
   of any single-illustration pet would otherwise have to catch by eye.
+- The resolution figures are now single-sourced: the README row (both languages),
+  this note, the cell comment in `tests/jyn-q-pet.spec.ts` and
+  `assets/jyn-q/README.md` all carry the measured 254-383 px / median 331 px /
+  ~0.74x numbers. `README.i18n.yaml` was re-recorded from the LF blobs at the same
+  time; the earlier record had hashed CRLF copies of both READMEs and so matched no
+  committed blob.

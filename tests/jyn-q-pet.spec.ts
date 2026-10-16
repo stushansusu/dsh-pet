@@ -22,9 +22,13 @@ const TRACK_FRAMES: Readonly<Record<string, number>> = {
 }
 
 /**
- * The one cell every frame shares. 320 px of content height is deliberate: the
- * default display height is 160 px, so a 2x screen gets a 1:1 blit instead of an
- * upscale, which is what the 223x297 first submission was rejected for.
+ * The one cell every frame shares. The art is regenerated to a nominal 320 px of
+ * content height, but display sizing divides the requested size by the CELL
+ * height, not by the illustration: measured frame by frame the art spans 254-383
+ * px (median 331) inside the 430 px cell, so the default size=160 draws it about
+ * 123 CSS px tall — a ~0.74x downsample on a 2x screen, not a 1:1 blit. The cell
+ * still answers the 223x297 rejection: it is no smaller than the other built-in
+ * cells, and what is left is a mild downsample rather than an upscale.
  */
 const CELL = '340x430'
 
